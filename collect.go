@@ -8,13 +8,19 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 )
 
 type PprofRequest struct {
 	Instance string
 	netClient *http.Client
 	tempDir string
+	profiles []Profile
+}
+
+type Profile struct {
+	url string
+	fileName string
+	svg bool
 }
 
 func NewPprofRequest(instance string) *PprofRequest {
@@ -28,29 +34,36 @@ func NewPprofRequest(instance string) *PprofRequest {
 	// DEBUG
 	log.Printf("temp dir: %v", tempDir)
 
+	profiles := []Profile{{url: "/debug/pprof/goroutine?debug=2"}}
+
 	request := PprofRequest{
-		Instance: instance,
+		Instance: instance + ".dwebops.net",
 		netClient: netClient,
-		tempDir: tempDir }
+		tempDir: tempDir,
+		profiles: profiles}
 
 	return &request
-	}
+}
 
 //
+// func (r *PprofRequest) Collect() {
+// 	for _, req
+// }
+
 func (r *PprofRequest) Collect() {
-	// r.goroutineStacks()
+	log.Printf("Collecting pprofs for %s to %s", r.Instance, r.tempDir)
+	r.goroutineStacks()
 	r.goroutineProfile()
-	// r.heapProfile()
-	// r.cpuProfile()
-	// r.mutexProfile()
+	r.heapProfile()
+	r.cpuProfile()
+	r.mutexProfile()
+	r.createArchive()
 }
 
 func (r *PprofRequest) goroutineStacks() {
 	profile, err := r.fetchPprof("/debug/pprof/goroutine?debug=2", "goroutine.stacks")
 	if err != nil { log.Fatal(err) }
 	log.Println(profile)
-	generateSVG(profile)
-
 }
 
 func (r *PprofRequest) goroutineProfile() {
@@ -64,7 +77,7 @@ func (r *PprofRequest) heapProfile() {
 	profile, err := r.fetchPprof("/debug/pprof/heap", "heap.pprof")
 	if err != nil { log.Fatal(err) }
 	log.Println(profile)
-	// -svg -output heap.svg "http://$HTTP_API/debug/pprof/heap"
+	generateSVG(profile)
 }
 
 // Collecting cpu profile (~30s)
@@ -72,7 +85,7 @@ func (r *PprofRequest) cpuProfile() {
 	profile, err := r.fetchPprof("/debug/pprof/profile", "cpuProfile.pprof")
 	if err != nil { log.Fatal(err) }
 	log.Println(profile)
-	// go tool pprof -symbolize=remote -svg -output cpu.svg "http://$HTTP_API/debug/pprof/profile"
+	generateSVG(profile)
 }
 
 func (r *PprofRequest) mutexProfile() {
@@ -109,7 +122,7 @@ func (r *PprofRequest) mutexProfile() {
 	// DEBUG
 	// log.Println(resp)
 
-	// go tool pprof -symbolize=remote -svg -output mutex.svg "http://$HTTP_API/debug/pprof/mutex"
+	generateSVG(profile)
 }
 
 func (r *PprofRequest) fetchPprof(location string, localFilename string) (string, error) {
@@ -138,15 +151,24 @@ func (r *PprofRequest) fetchPprof(location string, localFilename string) (string
 	return fileLocation, nil
 }
 
+func (r *PprofRequest) createArchive() (string, error) {
+	archivePath := "/tmp/" + r.Instance + ".tar.gz"
+	tarCmd:= exec.Command("tar", "czf", archivePath, r.tempDir)
+	err := tarCmd.Run()
+	if err != nil {
+		return "", err
+	}
+	log.Printf("Generated %s", archivePath)
+	return archivePath, nil
+}
+
 
 func generateSVG(profilePath string) {
-	// go tool pprof -symbolize=remote -svg -output mutex.svg "http://$HTTP_API/debug/pprof/mutex"
-	dirPath := filepath.Dir(profilePath)
-	output := filepath.Join(dirPath, filepath.Base(profilePath) + ".svg")
-	goToolCmd:= exec.Command("go", "tool", "pprof", "-symbolize=remote", "-svg", "-output", output, profilePath)
+	svgOutput := profilePath + ".svg"
+	goToolCmd:= exec.Command("go", "tool", "pprof", "-symbolize=remote", "-svg", "-output", svgOutput, profilePath)
 	err := goToolCmd.Run()
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("Generated %s", output)
+	log.Printf("Generated %s", svgOutput)
 }

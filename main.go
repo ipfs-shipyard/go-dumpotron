@@ -43,7 +43,6 @@ type Alerts []Alert
 
 type Message struct {
 	*Data
-
 	// The protocol version.
 }
 
@@ -56,6 +55,7 @@ func receive(rw http.ResponseWriter, req *http.Request) {
 	}
 	//fmt.Println(string(body))
 	var t Data
+	fmt.Printf("body: %s", body)
 	err = json.Unmarshal(body, &t)
 	if err != nil {
 		//panic(err)
@@ -70,33 +70,17 @@ func receive(rw http.ResponseWriter, req *http.Request) {
 	fmt.Println("Version     :", t.Version)
 	fmt.Println("Status      :", t.Status)
 	fmt.Println("GroupLabels :", t.GroupLabels)
-	fmt.Printf("Labels %v", t.Alerts)
-	//fmt.Println("\tAlertName :", t.GroupLabels.AlertName)
-	for k , v := range t.Alerts {
-		fmt.Println("\t", k)
-		fmt.Println("\t\tStatus      :" , v.Status)
-		fmt.Println("\t\tStartsAt    :" ,v.StartsAt)
-		fmt.Println("\t\tEndsAt      :"  ,v.EndsAt)
-		fmt.Printf("\t\tGeneratorURL: %s\n ", v.GeneratorURL)
-		fmt.Println("\t\tLabels:     :",v.Labels)
-		fmt.Println("\t\t\tAlertname:        :",v.Labels["alertname"])
-		fmt.Println("\t\t\tInstance:        :",v.Labels["instance"])
-		//fmt.Println("\t\t\tDrp_service:      :",v.Labels.Drp_service)
-		//fmt.Println("\t\t\tDrp_stage:        :",v.Labels.Drp_stage)
-		//fmt.Println("\t\t\tDrp_vertical:     :",v.Labels.Drp_vertical)
-		//fmt.Println("\t\t\tInstance:         :",v.Labels.Instance)
-		//fmt.Println("\t\t\tJob:              :",v.Labels.Job)
-		//fmt.Println("\t\t\tSeverity:         :",v.Labels.Severity)
-		fmt.Println("\t\tAnnotations :", v.Annotations)
-		// fmt.Println("\t\t\tDescription :", v.Annotations.Description)
-		// fmt.Println("\t\t\tSummary     :", v.Annotations.Summary)
+	fmt.Printf("Alerts: %v", t.Alerts)
 
+	for _ , v := range t.Alerts {
+		if (v.Labels["alertname"] == "node_high_memory_usage_95_percent") {
+			pprofs := NewPprofRequest(v.Labels["instance"])
+			pprofs.Collect()
+		}
 	}
 }
 
 func main() {
-	pprofs := NewPprofRequest("gateway-bank2-ams1.dwebops.net")
-	pprofs.Collect()
 	http.HandleFunc("/", receive)
 	log.Fatal(http.ListenAndServe(":9096", nil))
 }
