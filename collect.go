@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"encoding/json"
 	"time"
 	"io/ioutil"
 	"log"
@@ -15,12 +16,22 @@ type PprofRequest struct {
 	netClient *http.Client
 	tempDir string
 	profiles []Profile
+	IpfsVersion IPFSVersion
 }
 
 type Profile struct {
 	url string
 	fileName string
 	svg bool
+}
+
+type IPFSVersion struct {
+	Version string `json:"Version"`
+	Commit string `json:"Commit"`
+	Repo string `json:"Repo"`
+	System string `json:"System"`
+	Golang string `json:"Golang"`
+	//{"Version":"0.5.0-dev","Commit":"ae0e31d","Repo":"7","System":"amd64/linux","Golang":"go1.12.9"}
 }
 
 func NewPprofRequest(instance string) *PprofRequest {
@@ -50,14 +61,19 @@ func NewPprofRequest(instance string) *PprofRequest {
 // 	for _, req
 // }
 
-func (r *PprofRequest) Collect() {
+func (r *PprofRequest) Collect() (string){
 	log.Printf("Collecting pprofs for %s to %s", r.Instance, r.tempDir)
+	err := r.fetchVersion()
+	if err != nil { log.Fatal(err) }
+	log.Printf("Instance %s running version: %s-%s", r.Instance, r.IpfsVersion.Version, r.IpfsVersion.Commit)
 	r.goroutineStacks()
 	r.goroutineProfile()
 	r.heapProfile()
 	r.cpuProfile()
 	r.mutexProfile()
-	r.createArchive()
+	archivePath, err := r.createArchive()
+	if err != nil { log.Fatal(err) }
+	return archivePath
 }
 
 func (r *PprofRequest) goroutineStacks() {
@@ -151,8 +167,24 @@ func (r *PprofRequest) fetchPprof(location string, localFilename string) (string
 	return fileLocation, nil
 }
 
-func (r *PprofRequest) createArchive() (string, error) {
-	archivePath := "/tmp/" + r.Instance + ".tar.gz"
+func (r *PprofRequest) fetchVersion() (error) {
+	url := fmt.Sprintf("http://%s%s", r.Instance, "/api/v0/version")
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil { return err }
+
+	resp, err := r.netClient.Do(req)
+	defer resp.Body.Close()
+	if err != nil { return err }
+
+	body, err := ioutil.ReadAll(resp.Body)
+	err = json.Unmarshal(body, &r.IpfsVersion)
+	if err != nil { return err }
+
+	return nil
+}
+
+	func (r *PprofRequest) createArchive() (string, error) {
+	archivePath := fmt.Sprintf("/tmp/%s_%s-%s.tar.gz", r.Instance, r.IpfsVersion.Version, r.IpfsVersion.Commit)
 	tarCmd:= exec.Command("tar", "czf", archivePath, r.tempDir)
 	err := tarCmd.Run()
 	if err != nil {

@@ -75,7 +75,8 @@ func receive(rw http.ResponseWriter, req *http.Request) {
 	for _ , v := range t.Alerts {
 		if (v.Labels["alertname"] == "node_high_memory_usage_95_percent") {
 			pprofs := NewPprofRequest(v.Labels["instance"])
-			pprofs.Collect()
+			archivePath := pprofs.Collect()
+			log.Printf("Created pprof archive: %s\n", archivePath)
 		}
 	}
 }
