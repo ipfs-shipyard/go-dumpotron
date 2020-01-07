@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"encoding/json"
+	"os"
 )
 
 // KV is a set of key/value string pairs.
@@ -74,14 +75,30 @@ func receive(rw http.ResponseWriter, req *http.Request) {
 
 	for _ , v := range t.Alerts {
 		if (v.Labels["alertname"] == "node_high_memory_usage_95_percent") {
-			pprofs := NewPprofRequest(v.Labels["instance"])
-			archivePath := pprofs.Collect()
+			pprofs, err := NewPprofRequest(v.Labels["instance"], os.Getenv("PPROF_AUTH_PASS"))
+			if err != nil {
+				log.Printf("Error: %v\n", err)
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				break
+			}
+
+			archivePath, err := pprofs.Collect()
+			if err != nil {
+				log.Printf("Error: %v\n", err)
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				break
+			}
+
 			log.Printf("Created pprof archive: %s\n", archivePath)
 		}
 	}
 }
 
 func main() {
+	if len(os.Getenv("PPROF_AUTH_PASS")) == 0 {
+		log.Fatal("Missing HTTP Basic Auth password. Please Set/Export PPROF_AUTH_PASS")
+	}
+
 	http.HandleFunc("/", receive)
 	log.Fatal(http.ListenAndServe(":9096", nil))
 }
