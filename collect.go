@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"fmt"
+	"path"
 	"os/exec"
 )
 
@@ -38,7 +39,7 @@ func NewPprofRequest(instance string, httpasswd string) (*PprofRequest, error) {
 	netClient := &http.Client{
 		Timeout: time.Second * 120,
 	}
-	tempDir, err := ioutil.TempDir("", "example")
+	tempDir, err := ioutil.TempDir("", "dump")
 	if err != nil {
 		return &PprofRequest{}, fmt.Errorf("Failed to create tempdir: %v", err)
 	}
@@ -62,7 +63,7 @@ func NewPprofRequest(instance string, httpasswd string) (*PprofRequest, error) {
 // 	for _, req
 // }
 
-func (r *PprofRequest) Collect() (string, error){
+func (r *PprofRequest) Collect() (string, error) {
 	log.Printf("Collecting pprofs for %s to %s", r.Instance, r.tempDir)
 	err := r.fetchVersion()
 	if err != nil { return "", fmt.Errorf("%s: Failed to fetch go-ipfs version: %v", r.Instance, err) }
@@ -85,7 +86,13 @@ func (r *PprofRequest) Collect() (string, error){
 
 	archivePath, err := r.createArchive()
 	if err != nil { return "", fmt.Errorf("%s: create archive: %v", r.Instance, err) }
-	return archivePath, nil
+
+	//return archivePath, nil
+	cidUrl, err := r.addAndPinToCluster(archivePath)
+	if err != nil { return "", fmt.Errorf("%s: add to cluster: %s: %v", r.Instance, archivePath, err) }
+
+	log.Printf("URL to pinned archive: %s", cidUrl)
+	return cidUrl, nil
 }
 
 func (r *PprofRequest) goroutineStacks() (error) {
@@ -212,12 +219,12 @@ func (r *PprofRequest) fetchVersion() (error) {
 	return nil
 }
 
-	func (r *PprofRequest) createArchive() (string, error) {
+func (r *PprofRequest) createArchive() (string, error) {
 	archivePath := fmt.Sprintf("/tmp/%s_%s-%s.tar.gz", r.Instance, r.IpfsVersion.Version, r.IpfsVersion.Commit)
-	tarCmd:= exec.Command("tar", "czf", archivePath, r.tempDir)
+	tarCmd:= exec.Command("tar", "czf", archivePath, "-C", r.tempDir,  ".")
 	err := tarCmd.Run()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("%s: %v", archivePath, err)
 	}
 	log.Printf("Generated %s", archivePath)
 	return archivePath, nil
@@ -231,4 +238,24 @@ func generateSVG(profilePath string) (error) {
 	if err != nil { return err }
 	log.Printf("Generated %s", svgOutput)
 	return nil
+}
+
+func (r *PprofRequest) addAndPinToCluster(archivePath string) (string, error) {
+	cluster := NewIPFSCluster()
+	cids, err := cluster.Add(archivePath)
+	if err != nil {
+		return "", fmt.Errorf("Add to cluster %s: %v", archivePath, err)
+	}
+
+	log.Printf("added cids: %v", cids)
+
+	err = cluster.Pin(cids)
+	if err != nil {
+		return "", fmt.Errorf("Pin to cluster %s: %v", cids, err)
+	}
+	dirCid := cids[len(cids) -1]
+
+	// https://ipfs.io/ipfs/CID/archive.tar.gz
+	return fmt.Sprintf("https://ipfs.io/ipfs/%s/%s", dirCid, path.Base(archivePath)),nil
+	// return fmt.Sprintf("Pinned %s", cids), nil
 }
