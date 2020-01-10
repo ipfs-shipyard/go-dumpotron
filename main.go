@@ -177,5 +177,6 @@ func main() {
 	}
 
 	http.HandleFunc("/", receive)
+	log.Printf("HTTP server started on %d", 9096)
 	log.Fatal(http.ListenAndServe(":9096", nil))
 }

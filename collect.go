@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"net/http"
 	"encoding/json"
 	"time"
@@ -8,15 +9,19 @@ import (
 	"log"
 	"fmt"
 	"path"
+	"os"
 	"os/exec"
 )
+
+const GatewaysDomain = ".dwebops.net"
 
 type PprofRequest struct {
 	Instance string
 	netClient *http.Client
+	dumpDir string
 	tempDir string
 	profiles []Profile
-	IpfsVersion IPFSVersion
+	ipfsVersion IPFSVersion
 	httpasswd string
 }
 
@@ -39,21 +44,36 @@ func NewPprofRequest(instance string, httpasswd string) (*PprofRequest, error) {
 	netClient := &http.Client{
 		Timeout: time.Second * 120,
 	}
-	tempDir, err := ioutil.TempDir("", "dump")
+
+	ipfsVersion, err := fetchVersion(instance, netClient)
 	if err != nil {
-		return &PprofRequest{}, fmt.Errorf("Failed to create tempdir: %v", err)
+		return &PprofRequest{}, fmt.Errorf("%s: Failed to fetch go-ipfs version: %v", instance, err)
+	}
+	log.Printf("Instance %s running version: %s-%s", instance, ipfsVersion.Version, ipfsVersion.Commit)
+
+
+	tempDir, err := ioutil.TempDir("", "pprof")
+	if err != nil {
+		return &PprofRequest{}, fmt.Errorf("Failed to create tempDir: %v", err)
+	}
+	t := time.Now()
+	dumpDir := fmt.Sprintf("%s/%s_%s-%s_%s", tempDir, instance, ipfsVersion.Version, ipfsVersion.Commit, t.Format(time.RFC3339))
+	err = os.Mkdir(dumpDir, 0700)
+	if err != nil {
+		return &PprofRequest{}, fmt.Errorf("Failed to create dumpDir: %v", err)
 	}
 	// DEBUG
-	log.Printf("temp dir: %v", tempDir)
+	log.Printf("dumpDir: %v", dumpDir)
 
 	profiles := []Profile{{url: "/debug/pprof/goroutine?debug=2"}}
-
 	request := PprofRequest{
-		Instance: instance + ".dwebops.net",
+		Instance: instance + GatewaysDomain,
 		netClient: netClient,
+		dumpDir: dumpDir,
 		tempDir: tempDir,
 		profiles: profiles,
-		httpasswd: httpasswd}
+		httpasswd: httpasswd,
+		ipfsVersion: ipfsVersion}
 
 	return &request, nil
 }
@@ -64,12 +84,8 @@ func NewPprofRequest(instance string, httpasswd string) (*PprofRequest, error) {
 // }
 
 func (r *PprofRequest) Collect() (string, error) {
-	log.Printf("Collecting pprofs for %s to %s", r.Instance, r.tempDir)
-	err := r.fetchVersion()
-	if err != nil { return "", fmt.Errorf("%s: Failed to fetch go-ipfs version: %v", r.Instance, err) }
-	log.Printf("Instance %s running version: %s-%s", r.Instance, r.IpfsVersion.Version, r.IpfsVersion.Commit)
-
-	err = r.goroutineStacks()
+	log.Printf("Collecting pprofs for %s to %s", r.Instance, r.dumpDir)
+	err := r.goroutineStacks()
 	if err != nil { return "", fmt.Errorf("%s: fetch goroutine stacks: %v", r.Instance, err) }
 
 	err = r.goroutineProfile()
@@ -175,7 +191,7 @@ func (r *PprofRequest) mutexProfile() (error) {
 
 func (r *PprofRequest) fetchPprof(location string, localFilename string) (string, error) {
 	url := fmt.Sprintf("https://%s%s", r.Instance, location)
-	fileLocation := r.tempDir + "/" + localFilename
+	fileLocation := r.dumpDir + "/" + localFilename
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", err
@@ -203,29 +219,54 @@ func (r *PprofRequest) fetchPprof(location string, localFilename string) (string
 	return fileLocation, nil
 }
 
-func (r *PprofRequest) fetchVersion() (error) {
-	url := fmt.Sprintf("http://%s%s", r.Instance, "/api/v0/version")
+func fetchVersion(instance string, netClient *http.Client) (IPFSVersion, error) {
+	var ipfsVersion IPFSVersion
+	url := fmt.Sprintf("http://%s%s%s", instance , GatewaysDomain, "/api/v0/version")
 	req, err := http.NewRequest("GET", url, nil)
-	if err != nil { return err }
+	if err != nil {
+		return ipfsVersion,fmt.Errorf("failed to fetch version: %v", err)
+	}
 
-	resp, err := r.netClient.Do(req)
+	resp, err := netClient.Do(req)
 	defer resp.Body.Close()
-	if err != nil { return err }
+	if err != nil {
+		return ipfsVersion,fmt.Errorf("failed to fetch version: %v", err)
+	}
 
 	body, err := ioutil.ReadAll(resp.Body)
-	err = json.Unmarshal(body, &r.IpfsVersion)
-	if err != nil { return err }
+	//DEBUG
+	log.Printf("fetched version: %s", body)
+	err = json.Unmarshal(body, &ipfsVersion)
+	if err != nil {
+		return ipfsVersion, fmt.Errorf("failed to unmarshal version from JSON: %v", err)
+	}
 
-	return nil
+	return ipfsVersion, nil
 }
 
 func (r *PprofRequest) createArchive() (string, error) {
-	archivePath := fmt.Sprintf("/tmp/%s_%s-%s.tar.gz", r.Instance, r.IpfsVersion.Version, r.IpfsVersion.Commit)
-	tarCmd:= exec.Command("tar", "czf", archivePath, "-C", r.tempDir,  ".")
-	err := tarCmd.Run()
+	archivePath := fmt.Sprintf("%s/%s.tar.gz", r.tempDir, path.Base(r.dumpDir))
+	//DEBUG
+	log.Printf("creating archive: %s", archivePath)
+	tarCmd:= exec.Command("tar", "czf", archivePath, "-C", r.tempDir,  path.Base(r.dumpDir))
+
+	stderr, err := tarCmd.StderrPipe()
 	if err != nil {
-		return "", fmt.Errorf("%s: %v", archivePath, err)
+		return archivePath, fmt.Errorf("create archive: %s: %v", archivePath , err)
 	}
+
+	if err := tarCmd.Start(); err != nil {
+		return archivePath, fmt.Errorf("create archive: %s: %v", archivePath , err)
+	}
+
+	result := new(bytes.Buffer)
+	result.ReadFrom(stderr)
+
+	if err := tarCmd.Wait(); err != nil {
+		log.Printf("Result of creating %s: %s", archivePath, result)
+		return archivePath, fmt.Errorf("create archive: %s: %v", archivePath , err)
+	}
+
 	log.Printf("Generated %s", archivePath)
 	return archivePath, nil
 }
