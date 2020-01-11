@@ -40,6 +40,10 @@ type IPFSVersion struct {
 	//{"Version":"0.5.0-dev","Commit":"ae0e31d","Repo":"7","System":"amd64/linux","Golang":"go1.12.9"}
 }
 
+func (v *IPFSVersion) String() (string) {
+	return fmt.Sprintf("%s-%s", v.Version, v.Commit)
+}
+
 func NewPprofRequest(instance string, httpasswd string) (*PprofRequest, error) {
 	netClient := &http.Client{
 		Timeout: time.Second * 120,
@@ -104,10 +108,11 @@ func (r *PprofRequest) Collect() (string, error) {
 	if err != nil { return "", fmt.Errorf("%s: create archive: %v", r.Instance, err) }
 
 	//return archivePath, nil
-	cidUrl, err := r.addAndPinToCluster(archivePath)
+	cidUrl, err := ipfsClusterClient.AddAndPin(archivePath)
 	if err != nil { return "", fmt.Errorf("%s: add to cluster: %s: %v", r.Instance, archivePath, err) }
 
-	log.Printf("URL to pinned archive: %s", cidUrl)
+	//DEBUG
+	//log.Printf("pinned archive URL: %s", cidUrl)
 	return cidUrl, nil
 }
 
@@ -279,24 +284,4 @@ func generateSVG(profilePath string) (error) {
 	if err != nil { return err }
 	log.Printf("Generated %s", svgOutput)
 	return nil
-}
-
-func (r *PprofRequest) addAndPinToCluster(archivePath string) (string, error) {
-	cluster := NewIPFSCluster()
-	cids, err := cluster.Add(archivePath)
-	if err != nil {
-		return "", fmt.Errorf("Add to cluster %s: %v", archivePath, err)
-	}
-
-	log.Printf("added cids: %v", cids)
-
-	err = cluster.Pin(cids)
-	if err != nil {
-		return "", fmt.Errorf("Pin to cluster %s: %v", cids, err)
-	}
-	dirCid := cids[len(cids) -1]
-
-	// https://ipfs.io/ipfs/CID/archive.tar.gz
-	return fmt.Sprintf("https://ipfs.io/ipfs/%s/%s", dirCid, path.Base(archivePath)),nil
-	// return fmt.Sprintf("Pinned %s", cids), nil
 }
