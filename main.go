@@ -48,7 +48,7 @@ type Message struct {
 	// The protocol version.
 }
 
-	func receive(rw http.ResponseWriter, req *http.Request) {
+func receive(rw http.ResponseWriter, req *http.Request) {
 
 	body, err := ioutil.ReadAll(req.Body)
 	if err != nil {
@@ -83,7 +83,18 @@ type Message struct {
 				break
 			}
 
-			archiveURL, err := pprofs.Collect()
+			// collect pprof dumps archive
+			archivePath, err := pprofs.Collect()
+			if err != nil {
+				log.Printf("Error: %v\n", err)
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				break
+			}
+
+			// add & pin archive to IPFS cluster
+			cidURL, err := ipfsClusterClient.AddAndPin(archivePath)
+			//DEBUG
+			log.Printf("pinned archive URL: %s", cidURL)
 			if err != nil {
 				log.Printf("Error: %v\n", err)
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
@@ -91,16 +102,29 @@ type Message struct {
 			}
 
 			ipfsVersion := pprofs.ipfsVersion.String()
-			log.Printf("Version %s. Pinned pprof archive URL: %s\n", ipfsVersion, archiveURL)
+			// Fetch GH issue for go-ipfs version
+			ghIssue, err := getGHIssue(ipfsVersion)
+			//DEBUG
+			log.Printf("got GH Issue: %v", ghIssue)
+			if err != nil {
+				log.Printf("Error: %v\n", err)
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				break
+			}
 
-			// ghIssue, err := getGHIssue(ipfsVersion)
-			// if err != nil { log.Fatalf("Can't get/create GH issue: %v", err)}
-			// log.Printf("got GH Issue: %v", ghIssue)
+			// Post comment with pprof dump URL on GH issue
+			commentURL, err := postArchiveCIDtoGH(cidURL, ghIssue)
+			//DEBUG
+			log.Printf("new comment URL: %s", commentURL)
+			if err != nil {
+				log.Printf("Error: %v\n", err)
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+			}
 		}
 	}
-	}
+}
 
-	func main() {
+func main() {
 	envs := []string{"PPROF_AUTH_PASS", "IPFS_CLUSTER_AUTH", "GITHUB_TOKEN"}
 	for _, env := range envs {
 		if len(os.Getenv(env)) == 0 {

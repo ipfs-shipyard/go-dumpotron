@@ -106,14 +106,7 @@ func (r *PprofRequest) Collect() (string, error) {
 
 	archivePath, err := r.createArchive()
 	if err != nil { return "", fmt.Errorf("%s: create archive: %v", r.Instance, err) }
-
-	//return archivePath, nil
-	cidUrl, err := ipfsClusterClient.AddAndPin(archivePath)
-	if err != nil { return "", fmt.Errorf("%s: add to cluster: %s: %v", r.Instance, archivePath, err) }
-
-	//DEBUG
-	//log.Printf("pinned archive URL: %s", cidUrl)
-	return cidUrl, nil
+	return archivePath, nil
 }
 
 func (r *PprofRequest) goroutineStacks() (error) {

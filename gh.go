@@ -85,3 +85,14 @@ func createGHIssue(name string) (*github.Issue, error) {
 
 	return issue, err
 }
+
+func postArchiveCIDtoGH(cidURL string, issue *github.Issue) (string, error) {
+	//DEBUG
+	log.Printf("Adding comment to issue #%d: %s", *issue.Number, cidURL)
+	input := &github.IssueComment{Body: &cidURL}
+	comment, _, err := ghClient.Issues.CreateComment(context.Background(), ghOwner, ghRepo, *issue.Number, input)
+	if err != nil {
+		return "", fmt.Errorf("Issues.CreateComment returned error: %v", err)
+	}
+	return *comment.HTMLURL, nil
+}
