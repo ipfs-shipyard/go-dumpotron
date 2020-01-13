@@ -10,7 +10,9 @@ import (
 )
 
 var ghClient *github.Client
-const ghRepo = "protocol/bifrost-infra"
+const ghRepo = "bifrost-infra"
+const ghOwner = "protocol"
+const ghOwnerRepo =  ghOwner + "/" + ghRepo
 
 func setupGHClient(authToken string){
 	ctx := context.Background()
@@ -26,7 +28,6 @@ func setupGHClient(authToken string){
 }
 
 func getGHIssue(name string) (*github.Issue, error) {
-	var ghIssue *github.Issue
 	//DEBUG
 	log.Printf("Searching for issue: %s", name)
 	ghIssue, err := searchGHIssue(name)
@@ -34,26 +35,30 @@ func getGHIssue(name string) (*github.Issue, error) {
 		return ghIssue, fmt.Errorf("failed to fetch Github Issue: %v", err)
 	}
 
-	// if ghIssue == nil {
-	// // no existing GH issue, create one
-		// ghIssue, err := createGHIssue(name)
-		// if err != nil {
-		// 	return ghIssue, fmt.Errorf("failed to create Github Issue: %v ", err)
-		// }
-	// }
+	if ghIssue != nil {
+		return ghIssue, nil
+	}
+
+	// no existing GH issue, create one
+	//DEBUG
+	log.Printf("Issue not found: %s", name)
+	ghIssue, err = createGHIssue(name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Github Issue: %v ", err)
+	}
 	return ghIssue, nil
 }
 
 func searchGHIssue(name string) (*github.Issue, error){
 	//https://github.com/protocol/bifrost-infra/search?q=iSCSI+volume+doesn%27t+unmount&type=Issues
-	found, _, err := ghClient.Search.Issues(context.TODO(), "state:open repo:"+ghRepo+" "+name, &github.SearchOptions{
+	found, _, err := ghClient.Search.Issues(context.TODO(), "state:open repo:"+ghOwnerRepo+" "+name, &github.SearchOptions{
 		ListOptions: github.ListOptions{
 			Page:    1,
 			PerPage: 1,
 		},
 	})
 	if err != nil {
-		return &github.Issue{}, err
+		return nil, fmt.Errorf("Search.Issues returned error: %v", err)
 	}
 
 	//DEBUG
@@ -65,5 +70,18 @@ func searchGHIssue(name string) (*github.Issue, error){
 }
 
 func createGHIssue(name string) (*github.Issue, error) {
-	return &github.Issue{}, nil
+	//DEBUG
+	log.Printf("Creating issue: %s", name)
+	body := fmt.Sprintf("Tracking pprof dumps for go-ipfs version %s", name)
+	issueRequest := &github.IssueRequest{
+			Title:    &name,
+			Body:     &body,
+		}
+
+	issue, _, err := ghClient.Issues.Create(context.Background(), ghOwner, ghRepo, issueRequest)
+	if err != nil {
+		return nil, fmt.Errorf("Issues.Create returned error: %v", err)
+	}
+
+	return issue, err
 }
