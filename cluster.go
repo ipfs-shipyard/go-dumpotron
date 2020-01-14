@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"path"
 	"bytes"
-	"log"
+	log "github.com/sirupsen/logrus"
 )
 
 var ipfsClusterClient *IPFSCluster
@@ -36,8 +36,7 @@ func setupIPFSClusterClient(basicAuth string) {
 func (c *IPFSCluster) Add(archivePath string) ([]string, error) {
 	cids := make([]string, 0)
 	addCmd:= exec.Command("ipfs-cluster-ctl", "--basic-auth", c.basicAuth, "--host", c.host, "--enc=json", "add", "-w", "--no-stream", archivePath)
-	//DEBUG
-	log.Printf("Adding to cluster: %s", archivePath)
+	log.Infof("Adding archive to cluster: %s", archivePath)
 	stdout, err := addCmd.StdoutPipe()
 	if err != nil {
 		return cids, fmt.Errorf("add to cluster: %s: %v", archivePath , err)
@@ -54,13 +53,13 @@ func (c *IPFSCluster) Add(archivePath string) ([]string, error) {
 		return cids, fmt.Errorf("add to cluster: %s: %v", archivePath , err)
 	}
 
-	log.Printf("Result of adding %s: %s", archivePath, result)
+	log.Debugf("Result of adding %s: %s", archivePath, result)
 	addResponses := make([]IPFSClusterAddResponse, 0)
 	err = json.Unmarshal(result.Bytes(), &addResponses)
 	if err != nil {
 		return cids, fmt.Errorf("add to cluster: %s: %v", archivePath , err)
 	}
-	log.Printf("addResponses: %v", addResponses)
+	log.Debugf("addResponses: %v", addResponses)
 
 	// Extract CIDs from response
 	// Can't use json.Unmarshall() because the keys of the JSON response are variable
@@ -76,7 +75,7 @@ func (c *IPFSCluster) Pin(cids []string) (error) {
 	for _, cid := range cids {
 		pinCmd:= exec.Command("ipfs-cluster-ctl", "--basic-auth", c.basicAuth, "--host", c.host, "--enc=json", "pin", "add", cid)
 		// NOTE `ipfs-cluster-ctl pin add` exits without error regardless of whether the CID exists
-		log.Printf("Pinning %s", cid)
+		log.Infof("Pinning CID to cluster: %s", cid)
 		err := pinCmd.Run()
 		if err != nil {
 			return fmt.Errorf("pin %s: %v", cid, err)
@@ -91,7 +90,7 @@ func (c *IPFSCluster) AddAndPin(archivePath string) (string, error) {
 		return "", fmt.Errorf("Add to cluster %s: %v", archivePath, err)
 	}
 
-	log.Printf("added cids: %v", cids)
+	log.Debugf("added cids: %v", cids)
 
 	err = ipfsClusterClient.Pin(cids)
 	if err != nil {

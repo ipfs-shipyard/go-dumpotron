@@ -1,8 +1,7 @@
 package main
 
 import (
-	"fmt"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"time"
 	"io/ioutil"
 	"net/http"
@@ -55,30 +54,29 @@ func receive(rw http.ResponseWriter, req *http.Request) {
 		//panic(err)
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 	}
-	//fmt.Println(string(body))
 	var t Data
-	fmt.Printf("body: %s", body)
+	log.Debugf("body: %s", body)
 	err = json.Unmarshal(body, &t)
 	if err != nil {
 		//panic(err)
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 	}
 
-	//fmt.Println(t)
-	// DEBUG
-	fmt.Println("GroupKey    :", t.GroupKey)
-	fmt.Println("Receiver    :", t.Receiver)
-	fmt.Println("Status      :", t.Status)
-	fmt.Println("Version     :", t.Version)
-	fmt.Println("Status      :", t.Status)
-	fmt.Println("GroupLabels :", t.GroupLabels)
-	fmt.Printf("Alerts: %v", t.Alerts)
+	// DEBUGF
+	log.Debug("GroupKey    :", t.GroupKey)
+	log.Debug("Receiver    :", t.Receiver)
+	log.Debug("Status      :", t.Status)
+	log.Debug("Version     :", t.Version)
+	log.Debug("Status      :", t.Status)
+	log.Debug("GroupLabels :", t.GroupLabels)
+	log.Debug("Alerts: %v", t.Alerts)
 
 	for _ , v := range t.Alerts {
+		log.Infof("Received alert for instance %s: %s", v.Labels["instance"], v.Labels["alertname"])
 		if (v.Labels["alertname"] == "node_high_memory_usage_95_percent") {
 			pprofs, err := NewPprofRequest(v.Labels["instance"], os.Getenv("PPROF_AUTH_PASS"))
 			if err != nil {
-				log.Printf("Error: %v\n", err)
+				log.Errorf("Error: %v\n", err)
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 				break
 			}
@@ -86,7 +84,7 @@ func receive(rw http.ResponseWriter, req *http.Request) {
 			// collect pprof dumps archive
 			archivePath, err := pprofs.Collect()
 			if err != nil {
-				log.Printf("Error: %v\n", err)
+				log.Errorf("Error: %v\n", err)
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 				break
 			}
@@ -94,9 +92,9 @@ func receive(rw http.ResponseWriter, req *http.Request) {
 			// add & pin archive to IPFS cluster
 			cidURL, err := ipfsClusterClient.AddAndPin(archivePath)
 			//DEBUG
-			log.Printf("pinned archive URL: %s", cidURL)
+			log.Infof("pinned archive URL: %s", cidURL)
 			if err != nil {
-				log.Printf("Error: %v\n", err)
+				log.Errorf("Error: %v\n", err)
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 				break
 			}
@@ -105,9 +103,9 @@ func receive(rw http.ResponseWriter, req *http.Request) {
 			// Fetch GH issue for go-ipfs version
 			ghIssue, err := getGHIssue(ipfsVersion)
 			//DEBUG
-			log.Printf("got GH Issue: %v", ghIssue)
+			log.Debugf("Found GH Issue for version %s: %s", ipfsVersion, *ghIssue.HTMLURL)
 			if err != nil {
-				log.Printf("Error: %v\n", err)
+				log.Errorf("Error: %v\n", err)
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 				break
 			}
@@ -115,9 +113,9 @@ func receive(rw http.ResponseWriter, req *http.Request) {
 			// Post comment with pprof dump URL on GH issue
 			commentURL, err := postArchiveCIDtoGH(cidURL, ghIssue)
 			//DEBUG
-			log.Printf("new comment URL: %s", commentURL)
+			log.Infof("Added pprof dump URL to new comment at: %s", commentURL)
 			if err != nil {
-				log.Printf("Error: %v\n", err)
+				log.Errorf("Error: %v\n", err)
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
 			}
 		}
@@ -125,6 +123,10 @@ func receive(rw http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
+	log.SetLevel(log.InfoLevel)
+	if strings.ToLower(strings.TrimSpace(os.Getenv("LOG_LEVEL"))) == "debug" {
+		log.SetLevel(log.DebugLevel)
+	}
 	envs := []string{"PPROF_AUTH_PASS", "IPFS_CLUSTER_AUTH", "GITHUB_TOKEN"}
 	for _, env := range envs {
 		if len(os.Getenv(env)) == 0 {
@@ -139,6 +141,6 @@ func main() {
 	setupIPFSClusterClient(ipfsClusterToken)
 
 	http.HandleFunc("/", receive)
-	log.Printf("HTTP server started on %d", 9096)
+	log.Infof("HTTP server started on port %d", 9096)
 	log.Fatal(http.ListenAndServe(":9096", nil))
 }

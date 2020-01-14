@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"time"
 	"io/ioutil"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"fmt"
 	"path"
 	"os"
@@ -53,7 +53,7 @@ func NewPprofRequest(instance string, httpasswd string) (*PprofRequest, error) {
 	if err != nil {
 		return &PprofRequest{}, fmt.Errorf("%s: Failed to fetch go-ipfs version: %v", instance, err)
 	}
-	log.Printf("Instance %s running version: %s-%s", instance, ipfsVersion.Version, ipfsVersion.Commit)
+	log.Infof("Instance %s running version: %s-%s", instance, ipfsVersion.Version, ipfsVersion.Commit)
 
 
 	tempDir, err := ioutil.TempDir("", "pprof")
@@ -66,8 +66,7 @@ func NewPprofRequest(instance string, httpasswd string) (*PprofRequest, error) {
 	if err != nil {
 		return &PprofRequest{}, fmt.Errorf("Failed to create dumpDir: %v", err)
 	}
-	// DEBUG
-	log.Printf("dumpDir: %v", dumpDir)
+	log.Debugf("Saving pprofs dumps to: %s", dumpDir)
 
 	profiles := []Profile{{url: "/debug/pprof/goroutine?debug=2"}}
 	request := PprofRequest{
@@ -88,7 +87,7 @@ func NewPprofRequest(instance string, httpasswd string) (*PprofRequest, error) {
 // }
 
 func (r *PprofRequest) Collect() (string, error) {
-	log.Printf("Collecting pprofs for %s to %s", r.Instance, r.dumpDir)
+	log.Infof("Collecting pprofs for %s", r.Instance)
 	err := r.goroutineStacks()
 	if err != nil { return "", fmt.Errorf("%s: fetch goroutine stacks: %v", r.Instance, err) }
 
@@ -110,18 +109,16 @@ func (r *PprofRequest) Collect() (string, error) {
 }
 
 func (r *PprofRequest) goroutineStacks() (error) {
-	_, err := r.fetchPprof("/debug/pprof/goroutine?debug=2", "goroutine.stacks")
+	profile, err := r.fetchPprof("/debug/pprof/goroutine?debug=2", "goroutine.stacks")
 	if err != nil { return err }
-	//DEBUG
-	//log.Println(profile)
+	log.Debug(profile)
 	return nil
 }
 
 func (r *PprofRequest) goroutineProfile() (error) {
 	profile, err := r. fetchPprof("/debug/pprof/goroutine", "goroutine.pprof")
 	if err != nil { return err }
-	//DEBUG
-	//log.Println(profile)
+	log.Debug(profile)
 	err = generateSVG(profile)
 	if err != nil { return err }
 	return nil
@@ -130,8 +127,7 @@ func (r *PprofRequest) goroutineProfile() (error) {
 func (r *PprofRequest) heapProfile() (error) {
 	profile, err := r.fetchPprof("/debug/pprof/heap", "heap.pprof")
 	if err != nil { return err }
-	//DEBUG
-	// log.Println(profile)
+	log.Debug(profile)
 	err = generateSVG(profile)
 	if err != nil { return err }
 	return nil
@@ -141,8 +137,7 @@ func (r *PprofRequest) heapProfile() (error) {
 func (r *PprofRequest) cpuProfile() (error) {
 	profile, err := r.fetchPprof("/debug/pprof/profile", "cpuProfile.pprof")
 	if err != nil { return err }
-	//DEBUG
-	// log.Println(profile)
+	log.Debug(profile)
 	err = generateSVG(profile)
 	if err != nil { return err }
 	return nil
@@ -153,34 +148,29 @@ func (r *PprofRequest) mutexProfile() (error) {
 	postURLEnable := fmt.Sprintf("https://%s%s", r.Instance, "/debug/pprof-mutex/?fraction=4")
 	postReqEnable, err := http.NewRequest("POST", postURLEnable, nil)
 	postReqEnable.SetBasicAuth("admin", r.httpasswd)
-	//DEBUG
-	// log.Println(postReqEnable)
+	log.Debug(postReqEnable)
 	resp, err := r.netClient.Do(postReqEnable)
 	if err != nil { return err }
-	//DEBUG
-	log.Println(resp)
+	log.Debugf("Enabling mutex profiling response: ", resp)
 
 	// Waiting for mutex data to be updated
 	time.Sleep(30 * time.Second)
 
-	debug, err := r.fetchPprof("/debug/pprof/mutex?debug=2", "mutexDebug.txt")
+	mutexDebug, err := r.fetchPprof("/debug/pprof/mutex?debug=2", "mutexDebug.txt")
 	if err != nil { return err }
-	log.Println(debug)
+	log.Debug(mutexDebug)
 
 	profile, err := r.fetchPprof("/debug/pprof/mutex", "mutexProfile.pprof")
 	if err != nil { return err }
-	log.Println(profile)
+	log.Debug(profile)
 
 	// Disabling mutex profiling"
 	postURLDisable := fmt.Sprintf("https://%s%s", r.Instance, "/debug/pprof-mutex/?fraction=0")
 	postReqDisable, err := http.NewRequest("POST", postURLDisable, nil)
 	postReqDisable.SetBasicAuth("admin", r.httpasswd)
-	//DEBUG
-	// log.Println(postReqDisable)
 	resp, err = r.netClient.Do(postReqDisable)
 	if err != nil { return err }
-	// DEBUG
-	// log.Println(resp)
+	log.Debugf("Enabling mutex profiling response: ", resp)
 
 	err = generateSVG(profile)
 	if err != nil { return err }
@@ -196,7 +186,7 @@ func (r *PprofRequest) fetchPprof(location string, localFilename string) (string
 	}
 	req.SetBasicAuth("admin", r.httpasswd)
 
-	log.Printf("fetching %s profile from %s", localFilename, url)
+	log.Debugf("fetching %s profile from %s", localFilename, url)
 	resp, err := r.netClient.Do(req)
 	defer resp.Body.Close()
 	if err != nil {
@@ -207,7 +197,7 @@ func (r *PprofRequest) fetchPprof(location string, localFilename string) (string
 		return "", fmt.Errorf("HTTP request for %s failed with: %d", location, resp.StatusCode)
 	}
 
-	// log.Printf("resp: %v", resp)
+	log.Debugf("fetching %s resp: %v", url, resp)
 	body, err := ioutil.ReadAll(resp.Body)
 	err = ioutil.WriteFile(fileLocation, body, 0644)
 	if err != nil {
@@ -233,7 +223,7 @@ func fetchVersion(instance string, netClient *http.Client) (IPFSVersion, error) 
 
 	body, err := ioutil.ReadAll(resp.Body)
 	//DEBUG
-	log.Printf("fetched version: %s", body)
+	log.Debugf("fetched version: %s", body)
 	err = json.Unmarshal(body, &ipfsVersion)
 	if err != nil {
 		return ipfsVersion, fmt.Errorf("failed to unmarshal version from JSON: %v", err)
@@ -245,7 +235,7 @@ func fetchVersion(instance string, netClient *http.Client) (IPFSVersion, error) 
 func (r *PprofRequest) createArchive() (string, error) {
 	archivePath := fmt.Sprintf("%s/%s.tar.gz", r.tempDir, path.Base(r.dumpDir))
 	//DEBUG
-	log.Printf("creating archive: %s", archivePath)
+	log.Debugf("creating archive: %s", archivePath)
 	tarCmd:= exec.Command("tar", "czf", archivePath, "-C", r.tempDir,  path.Base(r.dumpDir))
 
 	stderr, err := tarCmd.StderrPipe()
@@ -261,11 +251,11 @@ func (r *PprofRequest) createArchive() (string, error) {
 	result.ReadFrom(stderr)
 
 	if err := tarCmd.Wait(); err != nil {
-		log.Printf("Result of creating %s: %s", archivePath, result)
+		log.Debugf("Error creating %s: %s", archivePath, result)
 		return archivePath, fmt.Errorf("create archive: %s: %v", archivePath , err)
 	}
 
-	log.Printf("Generated %s", archivePath)
+	log.Debugf("Generated %s", archivePath)
 	return archivePath, nil
 }
 
@@ -275,6 +265,6 @@ func generateSVG(profilePath string) (error) {
 	goToolCmd:= exec.Command("go", "tool", "pprof", "-symbolize=remote", "-svg", "-output", svgOutput, profilePath)
 	err := goToolCmd.Run()
 	if err != nil { return err }
-	log.Printf("Generated %s", svgOutput)
+	log.Debugf("Generated %s", svgOutput)
 	return nil
 }

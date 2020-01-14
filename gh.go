@@ -4,9 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/go-github/v29/github"
-	// "net/http"
 	"golang.org/x/oauth2"
-	"log"
+	log "github.com/sirupsen/logrus"
 )
 
 var ghClient *github.Client
@@ -22,14 +21,13 @@ func setupGHClient(authToken string){
 	tc := oauth2.NewClient(ctx, ts)
 
 	ghClient = github.NewClient(tc)
-	//DEBUG
-	//log.Printf("Created new go-github Client: %v", ghClient)
+	log.Debugf("Created new go-github Client: %v", ghClient)
 
 }
 
 func getGHIssue(name string) (*github.Issue, error) {
 	//DEBUG
-	log.Printf("Searching for issue: %s", name)
+	log.Debugf("Searching for issue: %s", name)
 	ghIssue, err := searchGHIssue(name)
 	if err != nil {
 		return ghIssue, fmt.Errorf("failed to fetch Github Issue: %v", err)
@@ -41,7 +39,7 @@ func getGHIssue(name string) (*github.Issue, error) {
 
 	// no existing GH issue, create one
 	//DEBUG
-	log.Printf("Issue not found: %s", name)
+	log.Infof("Issue not found: %s", name)
 	ghIssue, err = createGHIssue(name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Github Issue: %v ", err)
@@ -61,8 +59,7 @@ func searchGHIssue(name string) (*github.Issue, error){
 		return nil, fmt.Errorf("Search.Issues returned error: %v", err)
 	}
 
-	//DEBUG
-	//log.Printf("ghClient.Search.Issue(\"%s\") result: %v", name, found)
+	log.Debugf("ghClient.Search.Issue(\"%s\") result: %v", name, found)
 	if *found.Total == 0 {
 		return nil, nil
 	}
@@ -71,7 +68,7 @@ func searchGHIssue(name string) (*github.Issue, error){
 
 func createGHIssue(name string) (*github.Issue, error) {
 	//DEBUG
-	log.Printf("Creating issue: %s", name)
+	log.Debugf("Creating issue: %s", name)
 	body := fmt.Sprintf("Tracking pprof dumps for go-ipfs version %s", name)
 	issueRequest := &github.IssueRequest{
 			Title:    &name,
@@ -88,7 +85,7 @@ func createGHIssue(name string) (*github.Issue, error) {
 
 func postArchiveCIDtoGH(cidURL string, issue *github.Issue) (string, error) {
 	//DEBUG
-	log.Printf("Adding comment to issue #%d: %s", *issue.Number, cidURL)
+	log.Debugf("Adding comment to issue #%d: %s", *issue.Number, cidURL)
 	input := &github.IssueComment{Body: &cidURL}
 	comment, _, err := ghClient.Issues.CreateComment(context.Background(), ghOwner, ghRepo, *issue.Number, input)
 	if err != nil {
