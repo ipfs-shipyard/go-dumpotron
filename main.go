@@ -39,26 +39,22 @@ type Alert struct {
 	Fingerprint  string    `json:"fingerprint"`
 }
 
-// Alerts is a list of Alert objects.
 type Alerts []Alert
 
 type Message struct {
 	*Data
-	// The protocol version.
 }
 
 func receive(rw http.ResponseWriter, req *http.Request) {
 
 	body, err := ioutil.ReadAll(req.Body)
 	if err != nil {
-		//panic(err)
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 	}
 	var t Data
 	log.Debugf("body: %s", body)
 	err = json.Unmarshal(body, &t)
 	if err != nil {
-		//panic(err)
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 	}
 

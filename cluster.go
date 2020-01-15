@@ -100,5 +100,4 @@ func (c *IPFSCluster) AddAndPin(archivePath string) (string, error) {
 
 	// https://ipfs.io/ipfs/CID/archive.tar.gz
 	return fmt.Sprintf("https://ipfs.io/ipfs/%s/%s", dirCid, path.Base(archivePath)),nil
-	// return fmt.Sprintf("Pinned %s", cids), nil
 }

@@ -46,7 +46,6 @@ func getGHIssue(name string) (*github.Issue, error) {
 }
 
 func searchGHIssue(name string) (*github.Issue, error){
-	//https://github.com/protocol/bifrost-infra/search?q=iSCSI+volume+doesn%27t+unmount&type=Issues
 	found, _, err := ghClient.Search.Issues(context.TODO(), "state:open repo:"+ghOwnerRepo+" "+name, &github.SearchOptions{
 		ListOptions: github.ListOptions{
 			Page:    1,

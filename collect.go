@@ -20,24 +20,17 @@ type PprofRequest struct {
 	netClient *http.Client
 	dumpDir string
 	tempDir string
-	profiles []Profile
 	ipfsVersion IPFSVersion
 	httpasswd string
 }
 
-type Profile struct {
-	url string
-	fileName string
-	svg bool
-}
-
+//{"Version":"0.5.0-dev","Commit":"ae0e31d","Repo":"7","System":"amd64/linux","Golang":"go1.12.9"}
 type IPFSVersion struct {
 	Version string `json:"Version"`
 	Commit string `json:"Commit"`
 	Repo string `json:"Repo"`
 	System string `json:"System"`
 	Golang string `json:"Golang"`
-	//{"Version":"0.5.0-dev","Commit":"ae0e31d","Repo":"7","System":"amd64/linux","Golang":"go1.12.9"}
 }
 
 func (v *IPFSVersion) String() (string) {
@@ -68,23 +61,16 @@ func NewPprofRequest(instance string, httpasswd string) (*PprofRequest, error) {
 	}
 	log.Debugf("Saving pprofs dumps to: %s", dumpDir)
 
-	profiles := []Profile{{url: "/debug/pprof/goroutine?debug=2"}}
 	request := PprofRequest{
 		Instance: instance + GatewaysDomain,
 		netClient: netClient,
 		dumpDir: dumpDir,
 		tempDir: tempDir,
-		profiles: profiles,
 		httpasswd: httpasswd,
 		ipfsVersion: ipfsVersion}
 
 	return &request, nil
 }
-
-//
-// func (r *PprofRequest) Collect() {
-// 	for _, req
-// }
 
 func (r *PprofRequest) Collect() (string, error) {
 	log.Infof("Collecting pprofs for %s", r.Instance)
