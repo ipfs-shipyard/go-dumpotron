@@ -18,10 +18,18 @@ Build:
 ```
 go build
 ```
+Docker:
+```
+docker build -t go-dumpotron .
+```
 
 Run:
 ```
 ./go-dumpotron
+```
+Docker:
+```
+docker run --rm --net=host --name=go-dumpotron --env-file=.dockerenv go-dumpotron
 ```
 
 Test:
