@@ -62,7 +62,6 @@ func receive(rw http.ResponseWriter, req *http.Request) {
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 	}
 
-	// DEBUGF
 	log.Debug("GroupKey    :", t.GroupKey)
 	log.Debug("Receiver    :", t.Receiver)
 	log.Debug("Status      :", t.Status)
@@ -91,7 +90,6 @@ func receive(rw http.ResponseWriter, req *http.Request) {
 
 			// add & pin archive to IPFS cluster
 			cidURL, err := ipfsClusterClient.AddAndPin(archivePath)
-			//DEBUG
 			log.Infof("pinned archive URL: %s", cidURL)
 			if err != nil {
 				log.Errorf("Error: %v\n", err)
@@ -102,7 +100,6 @@ func receive(rw http.ResponseWriter, req *http.Request) {
 			ipfsVersion := pprofs.ipfsVersion.String()
 			// Fetch GH issue for go-ipfs version
 			ghIssue, err := getGHIssue(ipfsVersion)
-			//DEBUG
 			log.Debugf("Found GH Issue for version %s: %s", ipfsVersion, *ghIssue.HTMLURL)
 			if err != nil {
 				log.Errorf("Error: %v\n", err)
@@ -112,7 +109,6 @@ func receive(rw http.ResponseWriter, req *http.Request) {
 
 			// Post comment with pprof dump URL on GH issue
 			commentURL, err := postArchiveCIDtoGH(cidURL, ghIssue)
-			//DEBUG
 			log.Infof("Added pprof dump URL to new comment at: %s", commentURL)
 			if err != nil {
 				log.Errorf("Error: %v\n", err)

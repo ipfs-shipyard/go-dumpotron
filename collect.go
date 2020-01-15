@@ -150,8 +150,8 @@ func (r *PprofRequest) mutexProfile() (error) {
 	postReqEnable.SetBasicAuth("admin", r.httpasswd)
 	log.Debug(postReqEnable)
 	resp, err := r.netClient.Do(postReqEnable)
-	if err != nil { return err }
 	log.Debugf("Enabling mutex profiling response: ", resp)
+	if err != nil { return err }
 
 	// Waiting for mutex data to be updated
 	time.Sleep(30 * time.Second)
@@ -164,13 +164,13 @@ func (r *PprofRequest) mutexProfile() (error) {
 	if err != nil { return err }
 	log.Debug(profile)
 
-	// Disabling mutex profiling"
+	// Disabling mutex profiling
 	postURLDisable := fmt.Sprintf("https://%s%s", r.Instance, "/debug/pprof-mutex/?fraction=0")
 	postReqDisable, err := http.NewRequest("POST", postURLDisable, nil)
 	postReqDisable.SetBasicAuth("admin", r.httpasswd)
 	resp, err = r.netClient.Do(postReqDisable)
+	log.Debugf("Disabling mutex profiling response: ", resp)
 	if err != nil { return err }
-	log.Debugf("Enabling mutex profiling response: ", resp)
 
 	err = generateSVG(profile)
 	if err != nil { return err }
@@ -222,7 +222,6 @@ func fetchVersion(instance string, netClient *http.Client) (IPFSVersion, error) 
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
-	//DEBUG
 	log.Debugf("fetched version: %s", body)
 	err = json.Unmarshal(body, &ipfsVersion)
 	if err != nil {
@@ -234,7 +233,6 @@ func fetchVersion(instance string, netClient *http.Client) (IPFSVersion, error) 
 
 func (r *PprofRequest) createArchive() (string, error) {
 	archivePath := fmt.Sprintf("%s/%s.tar.gz", r.tempDir, path.Base(r.dumpDir))
-	//DEBUG
 	log.Debugf("creating archive: %s", archivePath)
 	tarCmd:= exec.Command("tar", "czf", archivePath, "-C", r.tempDir,  path.Base(r.dumpDir))
 
