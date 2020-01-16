@@ -13,7 +13,6 @@ import (
 	"os/exec"
 )
 
-const GatewaysDomain = ".dwebops.net"
 
 type PprofRequest struct {
 	Instance string
@@ -62,7 +61,7 @@ func NewPprofRequest(instance string, httpasswd string) (*PprofRequest, error) {
 	log.Debugf("Saving pprofs dumps to: %s", dumpDir)
 
 	request := PprofRequest{
-		Instance: instance + GatewaysDomain,
+		Instance: instance,
 		netClient: netClient,
 		dumpDir: dumpDir,
 		tempDir: tempDir,
@@ -174,10 +173,10 @@ func (r *PprofRequest) fetchPprof(location string, localFilename string) (string
 
 	log.Debugf("fetching %s profile from %s", localFilename, url)
 	resp, err := r.netClient.Do(req)
-	defer resp.Body.Close()
 	if err != nil {
 		return "", err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode > 400 {
 		return "", fmt.Errorf("HTTP request for %s failed with: %d", location, resp.StatusCode)
@@ -195,17 +194,18 @@ func (r *PprofRequest) fetchPprof(location string, localFilename string) (string
 
 func fetchVersion(instance string, netClient *http.Client) (IPFSVersion, error) {
 	var ipfsVersion IPFSVersion
-	url := fmt.Sprintf("http://%s%s%s", instance , GatewaysDomain, "/api/v0/version")
+	url := fmt.Sprintf("http://%s%s", instance , "/api/v0/version")
+	log.Debugf("Fetching go-ipfs version from $s", url)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return ipfsVersion,fmt.Errorf("failed to fetch version: %v", err)
 	}
 
 	resp, err := netClient.Do(req)
-	defer resp.Body.Close()
 	if err != nil {
 		return ipfsVersion,fmt.Errorf("failed to fetch version: %v", err)
 	}
+	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	log.Debugf("fetched version: %s", body)

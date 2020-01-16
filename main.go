@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	log "github.com/sirupsen/logrus"
 	"time"
 	"io/ioutil"
@@ -9,6 +10,8 @@ import (
 	"os"
 	"strings"
 )
+
+const GatewaysDomain = ".dwebops.net"
 
 // KV is a set of key/value string pairs.
 type KV map[string]string
@@ -68,8 +71,9 @@ func receive(rw http.ResponseWriter, req *http.Request) {
 
 	for _ , v := range t.Alerts {
 		log.Infof("Received alert for instance %s: %s", v.Labels["instance"], v.Labels["alertname"])
-		if (v.Labels["alertname"] == "node_high_memory_usage_95_percent") {
-			pprofs, err := NewPprofRequest(v.Labels["instance"], os.Getenv("PPROF_AUTH_PASS"))
+		if (v.Labels["alertname"] == "node_high_memory_usage_95_percent" ||
+			v.Labels["alertname"] == "node_high_cpu_usage_90_percent") {
+			pprofs, err := NewPprofRequest(v.Labels["instance"] + GatewaysDomain, os.Getenv("PPROF_AUTH_PASS"))
 			if err != nil {
 				log.Errorf("Error: %v\n", err)
 				http.Error(rw, err.Error(), http.StatusInternalServerError)
@@ -115,16 +119,23 @@ func receive(rw http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
+	daemon := flag.Bool("daemon", false, "a bool")
+	flag.Parse()
 	log.SetLevel(log.InfoLevel)
 	if strings.ToLower(strings.TrimSpace(os.Getenv("LOG_LEVEL"))) == "debug" {
 		log.SetLevel(log.DebugLevel)
 	}
-	envs := []string{"PPROF_AUTH_PASS", "IPFS_CLUSTER_AUTH", "GITHUB_TOKEN"}
-	for _, env := range envs {
-		if len(os.Getenv(env)) == 0 {
-			log.Fatalf("Please Set/Export env %s", env)
-		}
+
+	if (*daemon == true) {
+		startDaemon()
+	} else {
+		dumpLocally()
 	}
+
+}
+
+func startDaemon() {
+	checkEnvs([]string{"PPROF_AUTH_PASS", "IPFS_CLUSTER_AUTH", "GITHUB_TOKEN"})
 
 	// Setup clients
 	authToken := strings.TrimSpace(os.Getenv("GITHUB_TOKEN"))
@@ -135,4 +146,32 @@ func main() {
 	http.HandleFunc("/", receive)
 	log.Infof("HTTP server started on port %d", 9096)
 	log.Fatal(http.ListenAndServe(":9096", nil))
+}
+
+func dumpLocally() {
+	checkEnvs([]string{"PPROF_AUTH_PASS"})
+	if len(os.Args) < 2 {
+		log.Fatal("Please specify instance address (eg: gateway-bank1-sjc1.dwebops.net)")
+	}
+	instance := os.Args[1]
+	log.Infof("Dumping pprof locally for %s", instance)
+	pprofs, err := NewPprofRequest(instance, os.Getenv("PPROF_AUTH_PASS"))
+	if err != nil {
+		log.Fatalf("Error: %v", err)
+	}
+
+	// collect pprof dumps archive
+	archivePath, err := pprofs.Collect()
+	if err != nil {
+		log.Fatalf("Error: %v", err)
+	}
+	log.Infof("dump created at %s", archivePath)
+}
+
+func checkEnvs(envs []string) {
+	for _, env := range envs {
+		if len(os.Getenv(env)) == 0 {
+			log.Fatalf("Please Set/Export env %s", env)
+		}
+	}
 }
