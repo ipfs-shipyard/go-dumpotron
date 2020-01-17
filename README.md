@@ -38,7 +38,7 @@ docker run --rm --net=host --name=go-dumpotron --env-file=.dockerenv go-dumpotro
 #### One-time, generate pprof archive locally for specific instance
 ```
 # Prepend `LOG_LEVEL=debug` for debugging logs
-./go-dumpotron gateway-bank1-ewr1.dwebops.net
+PPROF_AUTH_PASS=THE_ADMIN_HTTPASSWD ./go-dumpotron gateway-bank1-ewr1.dwebops.net
 ```
 
 Docker:
@@ -46,7 +46,6 @@ Docker:
 mkdir /tmp/dumps
 docker run --rm --net=host --name=go-dumpotron --env-file=.dockerenv -v /tmp/dumps:/tmp go-dumpotron gateway-bank1-ewr1.dwebops.net
 ```
-
 
 ### Webhook Test:
 ```
