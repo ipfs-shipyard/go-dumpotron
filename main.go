@@ -71,49 +71,46 @@ func receive(rw http.ResponseWriter, req *http.Request) {
 
 	for _ , v := range t.Alerts {
 		log.Infof("Received alert for instance %s: %s", v.Labels["instance"], v.Labels["alertname"])
-		if (v.Labels["alertname"] == "node_high_memory_usage_95_percent" ||
-			v.Labels["alertname"] == "node_high_cpu_usage_90_percent") {
-			pprofs, err := NewPprofRequest(v.Labels["instance"] + GatewaysDomain, os.Getenv("PPROF_AUTH_PASS"))
-			if err != nil {
-				log.Errorf("Error: %v\n", err)
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				break
-			}
+		pprofs, err := NewPprofRequest(v.Labels["instance"] + GatewaysDomain, os.Getenv("PPROF_AUTH_PASS"))
+		if err != nil {
+		    log.Errorf("Error: %v\n", err)
+		    http.Error(rw, err.Error(), http.StatusInternalServerError)
+		    break
+		}
 
-			// collect pprof dumps archive
-			archivePath, err := pprofs.Collect()
-			if err != nil {
-				log.Errorf("Error: %v\n", err)
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				break
-			}
+		// collect pprof dumps archive
+		archivePath, err := pprofs.Collect()
+		if err != nil {
+		    log.Errorf("Error: %v\n", err)
+		    http.Error(rw, err.Error(), http.StatusInternalServerError)
+		    break
+		}
 
-			// add & pin archive to IPFS cluster
-			cidURL, err := ipfsClusterClient.AddAndPin(archivePath)
-			log.Infof("pinned archive URL: %s", cidURL)
-			if err != nil {
-				log.Errorf("Error: %v\n", err)
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				break
-			}
+		// add & pin archive to IPFS cluster
+		cidURL, err := ipfsClusterClient.AddAndPin(archivePath)
+		log.Infof("pinned archive URL: %s", cidURL)
+		if err != nil {
+		    log.Errorf("Error: %v\n", err)
+		    http.Error(rw, err.Error(), http.StatusInternalServerError)
+		    break
+		}
 
-			ipfsVersion := pprofs.ipfsVersion.String()
-			// Fetch GH issue for go-ipfs version
-			ghIssue, err := getGHIssue(ipfsVersion)
-			log.Debugf("Found GH Issue for version %s: %s", ipfsVersion, *ghIssue.HTMLURL)
-			if err != nil {
-				log.Errorf("Error: %v\n", err)
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-				break
-			}
+		ipfsVersion := pprofs.ipfsVersion.String()
+		// Fetch GH issue for go-ipfs version
+		ghIssue, err := getGHIssue(ipfsVersion)
+		log.Debugf("Found GH Issue for version %s: %s", ipfsVersion, *ghIssue.HTMLURL)
+		if err != nil {
+		    log.Errorf("Error: %v\n", err)
+		    http.Error(rw, err.Error(), http.StatusInternalServerError)
+		    break
+		}
 
-			// Post comment with pprof dump URL on GH issue
-			commentURL, err := postArchiveCIDtoGH(cidURL, ghIssue)
-			log.Infof("Added pprof dump URL to new comment at: %s", commentURL)
-			if err != nil {
-				log.Errorf("Error: %v\n", err)
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
-			}
+		// Post comment with pprof dump URL on GH issue
+		commentURL, err := postArchiveCIDtoGH(cidURL, ghIssue)
+		log.Infof("Added pprof dump URL to new comment at: %s", commentURL)
+		if err != nil {
+		    log.Errorf("Error: %v\n", err)
+		    http.Error(rw, err.Error(), http.StatusInternalServerError)
 		}
 	}
 }
