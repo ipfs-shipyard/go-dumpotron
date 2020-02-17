@@ -14,7 +14,7 @@ The following ENVs need to be set:
 - IPFS_CLUSTER_AUTH
 - GITHUB_TOKEN
 
-### Build:
+### Build
 ```
 go build
 ```
