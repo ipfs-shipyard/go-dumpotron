@@ -47,7 +47,7 @@ mkdir /tmp/dumps
 docker run --rm --net=host --name=go-dumpotron --env-file=.dockerenv -v /tmp/dumps:/tmp go-dumpotron gateway-bank1-ewr1.dwebops.net
 ```
 
-### Webhook Test:
+### Webhook Test
 ```
 curl localhost:9096 -d @fixtures/sample.json
 ```
