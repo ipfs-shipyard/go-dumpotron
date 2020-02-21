@@ -56,4 +56,6 @@ RUN  adduser -D -H -u 1000 dumpotron \
 # webhook TCP should be exposed to the public
 EXPOSE 9096
 
-CMD ["su-exec", "dumpotron", "go-dumpotron"]
+ENTRYPOINT ["su-exec", "dumpotron", "go-dumpotron"]
+
+CMD ["-daemon"]
