@@ -49,18 +49,25 @@ func searchGHIssue(name string) (*github.Issue, error){
 	found, _, err := ghClient.Search.Issues(context.TODO(), "state:open repo:"+ghOwnerRepo+" "+name, &github.SearchOptions{
 		ListOptions: github.ListOptions{
 			Page:    1,
-			PerPage: 1,
 		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("Search.Issues returned error: %v", err)
 	}
 
-	log.Debugf("ghClient.Search.Issue(\"%s\") result: %v", name, found)
+	log.Debugf("ghClient.Search.Issue(\"%s\") result: %+v", name, found)
 	if *found.Total == 0 {
 		return nil, nil
 	}
-	return &found.Issues[0], nil
+
+	for _, issue := range found.Issues {
+		log.Debugf("checking for exact title match in issue %d", *issue.Number)
+		if *issue.Title == name {
+			return &issue, nil
+		}
+	}
+
+	return nil, nil
 }
 
 func createGHIssue(name string) (*github.Issue, error) {
