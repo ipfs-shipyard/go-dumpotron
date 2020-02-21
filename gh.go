@@ -61,7 +61,7 @@ func searchGHIssue(name string) (*github.Issue, error){
 	}
 
 	for _, issue := range found.Issues {
-		log.Debugf("checking for exact title match in issue %d", *issue.Number)
+		log.Debugf("checking for exact title match in issue %d with title: \"%s\"", *issue.Number, *issue.Title)
 		if *issue.Title == name {
 			return &issue, nil
 		}
