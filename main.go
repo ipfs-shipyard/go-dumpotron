@@ -190,7 +190,7 @@ func checkEnvs(envs []string) {
 func copyArchiveToCwd(archivePath string) (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
-		log.Fatal(err)
+		return "", nil
 	}
 
 	cwdArchivePath := dir + "/" + path.Base(archivePath)
