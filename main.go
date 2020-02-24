@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -81,9 +82,9 @@ func receive(rw http.ResponseWriter, req *http.Request) {
 		    break
 		}
 
-		defer cleanupTempFiles()
 		// collect pprof dumps archive
 		archivePath, err := pprofs.Collect()
+		defer cleanupTempFiles(archivePath)
 		if err != nil {
 		    log.Errorf("Error: %v\n", err)
 		    http.Error(rw, err.Error(), http.StatusInternalServerError)
@@ -161,9 +162,9 @@ func dumpLocally() {
 		log.Fatalf("Error: %v", err)
 	}
 
-	defer cleanupTempFiles()
 	// collect pprof dumps archive
 	archivePath, err := pprofs.Collect()
+	defer cleanupTempFiles(archivePath)
 	if err != nil {
 		log.Fatalf("Error: %v", err)
 	}
@@ -201,8 +202,11 @@ func copyArchiveToCwd(archivePath string) (string, error) {
 	return cwdArchivePath, nil
 }
 
-func cleanupTempFiles() {
-	// if err != nil {
-	// 	log.Warnf("Error moving archive to CWD: %v", err)
-	// }
+func cleanupTempFiles(archivePath string) {
+	tmpDir := filepath.Dir(archivePath)
+	log.Debugf("Cleaning up tempfiles from %s", tmpDir)
+	err := os.RemoveAll(tmpDir)
+	if err != nil {
+		log.Warnf("Error cleaning up temp files: %v", err)
+	}
 }
