@@ -46,7 +46,7 @@ func getGHIssue(name string) (*github.Issue, error) {
 }
 
 func searchGHIssue(name string) (*github.Issue, error){
-	found, _, err := ghClient.Search.Issues(context.TODO(), "state:open repo:"+ghOwnerRepo+" "+name, &github.SearchOptions{
+	found, _, err := ghClient.Search.Issues(context.TODO(), "in:title state:open repo:"+ghOwnerRepo+" "+name, &github.SearchOptions{
 		ListOptions: github.ListOptions{
 			Page:    1,
 		},
@@ -60,6 +60,7 @@ func searchGHIssue(name string) (*github.Issue, error){
 		return nil, nil
 	}
 
+	log.Debugf("Potential matches count: %d", *found.Total)
 	for _, issue := range found.Issues {
 		log.Debugf("checking for exact title match in issue %d with title: \"%s\"", *issue.Number, *issue.Title)
 		if *issue.Title == name {
