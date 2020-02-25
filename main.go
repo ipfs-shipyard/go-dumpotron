@@ -173,7 +173,7 @@ func dumpLocally() {
 
 	cwdArchivePath, err := copyArchiveToCwd(archivePath)
 	if err != nil {
-		log.Fatalf("Error moving archive to CWD: %v", err)
+		log.Fatalf("Error copying archive to CWD: %v", err)
 	}
 	log.Infof("dump created at %s", cwdArchivePath)
 
@@ -207,6 +207,6 @@ func cleanupTempFiles(archivePath string) {
 	log.Debugf("Cleaning up tempfiles from %s", tmpDir)
 	err := os.RemoveAll(tmpDir)
 	if err != nil {
-		log.Warnf("Error cleaning up temp files: %v", err)
+		log.Warnf("Error cleaning up temp files $s: %v", tmpDir, err)
 	}
 }
