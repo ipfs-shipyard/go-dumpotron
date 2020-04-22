@@ -24,10 +24,12 @@ docker build -t go-dumpotron .
 ```
 
 ### Run
+Get credentials from the 1Password note named [go-dumpotron credentials](https://start.1password.com/open/i?a=4XNRW7JPXZEI7C7CEIAF27VTSQ&h=protocollabs.1password.com&i=5fqwpic7gp2pxu3oc3i4elgknm&v=hgaw43xamtkvt35xfx3gywnppa) in the `Infra team` vault
+
 #### As daemon, HTTP server accepting Alertmanager webhook calls
 ```
 # Prepend `LOG_LEVEL=debug` for debugging logs
-./go-dumpotron -daemon
+source .env && ./go-dumpotron -daemon
 ```
 
 Docker:
@@ -38,13 +40,15 @@ docker run --rm --net=host --name=go-dumpotron --env-file=.dockerenv go-dumpotro
 #### One-time, generate pprof archive locally for specific instance
 ```
 # Prepend `LOG_LEVEL=debug` for debugging logs
+source .env && ./go-dumpotron gateway-bank1-ewr1.dwebops.net
+# or by passing in a basic auth passwd for the endpoint
 PPROF_AUTH_PASS=THE_ADMIN_HTTPASSWD ./go-dumpotron gateway-bank1-ewr1.dwebops.net
 ```
 
 Docker:
 ```
 mkdir /tmp/dumps
-docker run --rm --net=host --name=go-dumpotron --env-file=.dockerenv -v /tmp/dumps:/tmp go-dumpotron gateway-bank1-ewr1.dwebops.net
+docker run -it --env-file=.dockerenv -w /tmp/pprofs -v $(pwd):/tmp/pprofs ipfsshipyardbot/go-dumpotron gateway-bank1-ewr1.dwebops.net
 ```
 
 ### Webhook Test
