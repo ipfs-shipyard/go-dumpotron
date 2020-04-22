@@ -34,7 +34,7 @@ source .env && ./go-dumpotron -daemon
 
 Docker:
 ```
-docker run --rm --net=host --name=go-dumpotron --env-file=.dockerenv go-dumpotron
+docker run --rm --net=host --name=go-dumpotron --env-file=.dockerenv ipfsshipyardbot/go-dumpotron
 ```
 
 #### One-time, generate pprof archive locally for specific instance
