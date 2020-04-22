@@ -3,11 +3,15 @@ package main
 import (
 	"flag"
 	log "github.com/sirupsen/logrus"
+	"fmt"
+	"github.com/termie/go-shutil"
 	"time"
 	"io/ioutil"
 	"net/http"
 	"encoding/json"
 	"os"
+	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -80,6 +84,7 @@ func receive(rw http.ResponseWriter, req *http.Request) {
 
 		// collect pprof dumps archive
 		archivePath, err := pprofs.Collect()
+		defer cleanupTempFiles(archivePath)
 		if err != nil {
 		    log.Errorf("Error: %v\n", err)
 		    http.Error(rw, err.Error(), http.StatusInternalServerError)
@@ -159,10 +164,19 @@ func dumpLocally() {
 
 	// collect pprof dumps archive
 	archivePath, err := pprofs.Collect()
+	defer cleanupTempFiles(archivePath)
 	if err != nil {
 		log.Fatalf("Error: %v", err)
 	}
-	log.Infof("dump created at %s", archivePath)
+	log.Debugf("temp dump created at %s", archivePath)
+
+
+	cwdArchivePath, err := copyArchiveToCwd(archivePath)
+	if err != nil {
+		log.Fatalf("Error copying archive to CWD: %v", err)
+	}
+	log.Infof("dump created at %s", cwdArchivePath)
+
 }
 
 func checkEnvs(envs []string) {
@@ -170,5 +184,29 @@ func checkEnvs(envs []string) {
 		if len(os.Getenv(env)) == 0 {
 			log.Fatalf("Please Set/Export env %s", env)
 		}
+	}
+}
+
+func copyArchiveToCwd(archivePath string) (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", nil
+	}
+
+	cwdArchivePath := dir + "/" + path.Base(archivePath)
+	log.Debugf("Copying archive from %s => %s", archivePath, cwdArchivePath)
+	fileCopiedTo , err := shutil.Copy(archivePath, cwdArchivePath, false)
+	if err != nil { return "", fmt.Errorf("Error moving file from %s to %s: %v", archivePath, cwdArchivePath, err) }
+	log.Debugf("File copied to: %s", fileCopiedTo)
+
+	return cwdArchivePath, nil
+}
+
+func cleanupTempFiles(archivePath string) {
+	tmpDir := filepath.Dir(archivePath)
+	log.Debugf("Cleaning up tempfiles from %s", tmpDir)
+	err := os.RemoveAll(tmpDir)
+	if err != nil {
+		log.Warnf("Error cleaning up temp files $s: %v", tmpDir, err)
 	}
 }
