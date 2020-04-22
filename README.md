@@ -40,7 +40,7 @@ docker run --rm --net=host --name=go-dumpotron --env-file=.dockerenv ipfsshipyar
 #### One-time, generate pprof archive locally for specific instance
 ```
 # Prepend `LOG_LEVEL=debug` for debugging logs
-source .env && ./go-dumpotron gateway-bank1-ewr1.dwebops.net
+source .env && LOG_LEVEL=DEBUG ./go-dumpotron gateway-bank1-ewr1.dwebops.net
 # or by passing in a basic auth passwd for the endpoint
 PPROF_AUTH_PASS=THE_ADMIN_HTTPASSWD ./go-dumpotron gateway-bank1-ewr1.dwebops.net
 ```
