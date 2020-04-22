@@ -47,7 +47,7 @@ PPROF_AUTH_PASS=THE_ADMIN_HTTPASSWD ./go-dumpotron gateway-bank1-ewr1.dwebops.ne
 
 Docker:
 ```
-mkdir /tmp/dumps
+mkdir /tmp/pprofs
 docker run -it --env-file=.dockerenv -w /tmp/pprofs -v $(pwd):/tmp/pprofs ipfsshipyardbot/go-dumpotron gateway-bank1-ewr1.dwebops.net
 ```
 
